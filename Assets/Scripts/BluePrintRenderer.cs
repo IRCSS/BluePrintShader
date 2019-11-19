@@ -17,6 +17,7 @@ public class BluePrintRenderer : MonoBehaviour {
     private Texture         whiteTexture;
     private Mesh            meshToDraw;
     private Matrix4x4       meshMVP;
+    private int             captureSet;
 //  ------- --------------- -------------------
 
 	void Start () {
@@ -38,7 +39,7 @@ public class BluePrintRenderer : MonoBehaviour {
 
         peelingIntermidate = new RenderTexture[numberOfLayers];
         for(int i = 0; i < peelingIntermidate.Length; i++)
-            peelingIntermidate[i] = new RenderTexture(mainCam.pixelWidth, mainCam.pixelHeight, 16, RenderTextureFormat.RGB111110Float)
+            peelingIntermidate[i] = new RenderTexture(mainCam.pixelWidth, mainCam.pixelHeight, 16, RenderTextureFormat.ARGBFloat)
             {
                 filterMode = FilterMode.Point,
                 anisoLevel = 0,
@@ -51,7 +52,7 @@ public class BluePrintRenderer : MonoBehaviour {
         cbPeeling      = new CommandBuffer();
         cbPeeling.name = "DepthPeeling";
 
-        whiteTexture   = Texture2D.whiteTexture;
+        whiteTexture   = Texture2D.blackTexture;
         meshToDraw     = objectToRender.GetComponent<MeshFilter>().sharedMesh;
 
 
@@ -60,9 +61,14 @@ public class BluePrintRenderer : MonoBehaviour {
             if(i == 0) cbPeeling.SetGlobalTexture("_PreviusLayer", whiteTexture);
             else       cbPeeling.SetGlobalTexture("_PreviusLayer", peelingIntermidate[i-1]);
             cbPeeling.SetRenderTarget(peelingIntermidate[i]);
+            cbPeeling.ClearRenderTarget(true, true, Color.white);
+
+            meshMVP = objectToRender.transform.localToWorldMatrix;
+          
             cbPeeling.DrawMesh(meshToDraw, meshMVP, depthPeelingMat, 0, 0);
         }
 
+        //cbPeeling.Blit(peelingIntermidate[1], BuiltinRenderTextureType.CameraTarget);
         mainCam.AddCommandBuffer(CameraEvent.AfterForwardOpaque, cbPeeling);
 
 
@@ -70,7 +76,18 @@ public class BluePrintRenderer : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
-        meshMVP = objectToRender.transform.localToWorldMatrix;
 
+
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            captureSet++;
+            int i = 0;
+            foreach(RenderTexture t in peelingIntermidate)
+            {
+                
+                SaveRenderTexture.Save(t, SaveRenderTexture.OutPutType.JPEG, objectToRender.name+"Set" + captureSet + "Layer"+i);
+                i++;
+            }
+        }
     }
 }

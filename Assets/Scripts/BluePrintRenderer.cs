@@ -9,11 +9,18 @@ public class BluePrintRenderer : MonoBehaviour {
 //  ------- --------------- -------------------
     public  GameObject      objectToRender;
     public  int             numberOfLayers;
+    [Range(0f,1f)]
+    public  float           objectOpacity = 0.4f;
 
     private CommandBuffer   cbPeeling;
-    public  RenderTexture[] peelingIntermidate;
+    private CommandBuffer   cbEdgeMapping;
+    private RenderTexture[] peelingIntermidate;
+    private RenderTexture   edgeMap;
+    private RenderTexture   forwardPass;
     private Camera          mainCam;
     private Material        depthPeelingMat;
+    private Material        edgeConstructionMat;
+    private Material        combineOnScreen;
     private Texture         whiteTexture;
     private Mesh            meshToDraw;
     private Matrix4x4       meshMVP;
@@ -46,8 +53,10 @@ public class BluePrintRenderer : MonoBehaviour {
                 useMipMap  = false,
             };
         // ------------------------------------------------------------------
-        depthPeelingMat = new Material( Shader.Find("Unlit/DepthPeeler"));
+            depthPeelingMat = new Material( Shader.Find("Unlit/DepthPeeler"));
         if (depthPeelingMat == null) Debug.LogError("Could not find the shade Unlit/DepthPeeler");
+
+        // ==================================================================
         // ------------------------------------------------------------------
         cbPeeling      = new CommandBuffer();
         cbPeeling.name = "DepthPeeling";
@@ -71,12 +80,56 @@ public class BluePrintRenderer : MonoBehaviour {
         //cbPeeling.Blit(peelingIntermidate[1], BuiltinRenderTextureType.CameraTarget);
         mainCam.AddCommandBuffer(CameraEvent.AfterForwardOpaque, cbPeeling);
 
+        // ==================================================================
+        // ------------------------------------------------------------------
 
-	}
-	
-	// Update is called once per frame
-	void Update () {
+        edgeMap             = new RenderTexture(peelingIntermidate[0]);
+        edgeConstructionMat = new Material(Shader.Find("Unlit/EdgeMapping"));
+        forwardPass         = new RenderTexture(edgeMap);
+        // ------------------------------------------------------------------
 
+        cbEdgeMapping       = new CommandBuffer();
+        cbEdgeMapping.name  = "EdgeMapping";
+
+
+
+        for (int i = 0; i < numberOfLayers; i++)
+        {
+            cbEdgeMapping.SetRenderTarget(edgeMap);
+            cbEdgeMapping.ClearRenderTarget(true, true, Color.black);
+
+            cbEdgeMapping.Blit(peelingIntermidate[i], edgeMap, edgeConstructionMat, 0);
+            cbEdgeMapping.Blit(edgeMap, peelingIntermidate[i]);
+            
+        }
+
+        
+
+        for (int i = 0; i < numberOfLayers; i++)
+        {
+          //  cbEdgeMapping.SetRenderTarget(edgeMap);
+            cbEdgeMapping.Blit(peelingIntermidate[i], edgeMap, edgeConstructionMat, 1);
+
+        }
+
+        combineOnScreen = new Material(Shader.Find("Unlit/CombineOnScreen"));
+
+        
+
+        cbEdgeMapping.Blit(BuiltinRenderTextureType.CameraTarget, forwardPass);
+        cbEdgeMapping.SetGlobalTexture("_ForwadPass", forwardPass);
+        cbEdgeMapping.Blit(edgeMap, BuiltinRenderTextureType.CameraTarget, combineOnScreen);
+        cbEdgeMapping.Blit(BuiltinRenderTextureType.CameraTarget, edgeMap);
+
+        mainCam.AddCommandBuffer(CameraEvent.AfterForwardOpaque, cbEdgeMapping);
+
+    }
+
+    // Update is called once per frame
+    void Update () {
+
+
+        Shader.SetGlobalFloat("_ForwardPassContribution", objectOpacity);
 
         if (Input.GetKeyDown(KeyCode.F))
         {
@@ -88,6 +141,8 @@ public class BluePrintRenderer : MonoBehaviour {
                 SaveRenderTexture.Save(t, SaveRenderTexture.OutPutType.JPEG, objectToRender.name+"Set" + captureSet + "Layer"+i);
                 i++;
             }
+
+            SaveRenderTexture.Save(edgeMap, SaveRenderTexture.OutPutType.JPEG, objectToRender.name + "Set" + captureSet + "FinalEdge");
         }
     }
 }

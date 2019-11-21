@@ -52,10 +52,10 @@
 			fixed4 frag (v2f i) : SV_Target
 			{
 				fixed4 col    = tex2D(_PreviusLayer, i.proj.xy/i.proj.w);
-			    clip(i.proj.z - (col.b + 0.00001));
-			           col.b  = i.proj.z;
+			    clip(i.proj.z - (col.a + 0.00001));
+			           col.a  = i.proj.z;
 					   
-					   col.rg = normalize(i.wNormal).xy;
+					   col.rgb = normalize(i.wNormal).xyz;
 					
 				return col;
 			}
